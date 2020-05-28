@@ -14,7 +14,9 @@ defmodule GitBoy.Application do
       # Start the Endpoint (http/https)
       GitBoyWeb.Endpoint,
       # Start the ProgrammingLanguages service
-      GitBoy.ProgrammingLanguages
+      GitBoy.ProgrammingLanguages,
+      # Start the Licenses service
+      GitBoy.Licenses
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

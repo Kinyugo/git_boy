@@ -41,9 +41,9 @@ defmodule GitBoy.ProgrammingLanguages do
 
   ## Examples
 
-      iex> suggest_languages("")
+      iex> GitBoy.ProgrammingLanguages.suggest_languages("")
       []
-      iex> suggest_languages("elix")
+      iex> GitBoy.ProgrammingLanguages.suggest_languages("elix")
       ["Elixir"]
   """
   @spec suggest_languages(String.t()) :: [String.t()] | []
@@ -63,7 +63,7 @@ defmodule GitBoy.ProgrammingLanguages do
 
   ## Examples
 
-      iex> list_languages()
+      iex> GitBoy.ProgrammingLanguages.list_languages()
       ["A# .NET", "Elixir", ...]
   """
   @spec list_languages() :: [String.t()] | []
