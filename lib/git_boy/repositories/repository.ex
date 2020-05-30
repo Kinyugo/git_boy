@@ -67,3 +67,9 @@ defmodule GitBoy.Repositories.Repository do
   defp transform_to_tuple("license", license_data), do: {:license, License.parse(license_data)}
   defp transform_to_tuple(key, value), do: {String.to_atom(key), value}
 end
+
+defimpl String.Chars, for: GitBoy.Repositories.Repository do
+  def to_string(term) do
+    inspect(term)
+  end
+end
