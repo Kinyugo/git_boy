@@ -9,8 +9,9 @@ defmodule GitBoy.Repositories do
   """
   use GenServer
   alias GitBoy.Repositories.GitHubAPI
+  alias GitBoy.Repositories.Repository
 
-  @default_cache_timeout 30_000
+  @default_cache_timeout 120_000
   @default_query_params [query: ["language:elixir"], sort: "stars", order: "desc"]
   @default_cache_vsn 1
 
@@ -29,10 +30,39 @@ defmodule GitBoy.Repositories do
     GenServer.start_link(__MODULE__, init_args, opts)
   end
 
+  def is_empty?(repo_server) do
+    repo_server
+    |> list_repositories()
+    |> Enum.empty?()
+  end
+
+  @spec filter_by_name(atom | pid | {atom, any} | {:via, atom, any}, String.t()) ::
+          [Repository.t()] | []
+  def filter_by_name(repo_server, repo_name) do
+    repo_server
+    |> list_repositories()
+    |> Enum.filter(fn repo -> has_substr?(repo.name, repo_name) end)
+  end
+
+  @spec filter_by_language(atom | pid | {atom, any} | {:via, atom, any}, String.t()) ::
+          [Repository.t()] | []
+  def filter_by_language(repo_server, language) do
+    repo_server
+    |> list_repositories()
+    |> Enum.filter(fn repo -> equivalent_strings?(repo.language, language) end)
+  end
+
+  @spec list_repositories(atom | pid | {atom, any} | {:via, atom, any}) :: [Repository.t()] | []
   def list_repositories(repo_server) do
     GenServer.call(repo_server, :list_repositories)
   end
 
+  def refetch_repositories(repo_server) do
+    GenServer.call(repo_server, :refetch_repositories)
+  end
+
+  @spec fetch_repositories(atom | pid | {atom, any} | {:via, atom, any}, GitHubAPI.params()) ::
+          [Repository.t()] | []
   def fetch_repositories(repo_server, query_params) do
     GenServer.call(repo_server, {:fetch_repositories, query_params})
   end
@@ -46,12 +76,39 @@ defmodule GitBoy.Repositories do
     # Schedule cache cleanup after the given timeout
     schedule_cache_cleanup({cache_vsn, cache_timeout})
 
-    {:ok, %{repositories: repositories, cache_timeout: cache_timeout, cache_vsn: cache_vsn}}
+    {:ok,
+     %{
+       repositories: repositories,
+       cache_timeout: cache_timeout,
+       cache_vsn: cache_vsn,
+       query_params: query_params
+     }}
   end
 
   @impl true
   def handle_call(:list_repositories, _from, %{repositories: repositories} = state) do
     {:reply, repositories, state}
+  end
+
+  @impl true
+  def handle_call(
+        :refetch_repositories,
+        _from,
+        %{cache_timeout: cache_timeout, query_params: query_params} = state
+      ) do
+    # Fetch repositories from github api using the previous query.
+    repositories = GitHubAPI.search_for_repositories(query_params)
+
+    new_state =
+      state
+      |> update_repositories(repositories)
+      |> update_cache_vsn()
+
+    # Schedule cleanup for the updated vsn of the cache
+    cache_vsn = Map.get(state, :cache_vsn)
+    schedule_cache_cleanup({cache_vsn, cache_timeout})
+
+    {:reply, repositories, new_state}
   end
 
   @impl true
@@ -67,10 +124,10 @@ defmodule GitBoy.Repositories do
       state
       |> update_repositories(repositories)
       |> update_cache_vsn()
+      |> update_query_params(query_params)
 
     # Schedule cleanup for the updated version of the cache
     cache_vsn = Map.get(state, :cache_vsn)
-
     schedule_cache_cleanup({cache_vsn, cache_timeout})
 
     {:reply, repositories, new_state}
@@ -93,6 +150,22 @@ defmodule GitBoy.Repositories do
       end
 
     {:noreply, new_state}
+  end
+
+  ## Helpers
+  defp equivalent_strings?(first_string, second_string)
+       when is_binary(first_string) and is_binary(second_string) do
+    String.equivalent?(String.downcase(first_string), String.downcase(second_string))
+  end
+
+  defp equivalent_strings?(_, _), do: false
+
+  defp has_substr?(name, substr) do
+    String.contains?(String.downcase(name), String.downcase(substr))
+  end
+
+  defp update_query_params(state, new_query_params) do
+    Map.put(state, :query_params, new_query_params)
   end
 
   defp update_cache_vsn(state) do
