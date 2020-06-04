@@ -1,0 +1,68 @@
+<div class="repositories">
+  <h1 class="repositories__heading">Popular repositories...</h1>
+
+  <form class="repositories__form" phx-submit="search_repositories">
+    <div class="repositories__input-container">
+      <input
+        value="<%= @language %>"
+        type="text"
+        name="language"
+        placeholder="Search by language..."
+        autocomplete="off"
+        list="language-suggestions"
+        id="language"
+        class="repositories__input--text"
+        phx-keyup="update_language_suggestions_and_filter_repos"
+        phx-debounce="500"
+      >
+
+      <input
+        value="<%= @repo_name %>"
+        type="text"
+        name="repo_name"
+        placeholder="Search by name..."
+        autocomplete="off"
+        id="repo-name"
+        class="repositories__input--text"
+        phx-keyup="filter_repos"
+        phx-debounce="500"
+      >
+
+      <datalist id="language-suggestions">
+        <%= for language_suggestion <- @language_suggestions do %>
+          <option value="<%= language_suggestion %>">
+            <%= language_suggestion %>
+          </option>
+        <% end %>
+      </datalist>
+    </div>
+
+    <div class="repositories__input-container">
+      <button type="submit" class="repositories__search-button" phx-disable-with="Searching..." >
+        <span class="material-icons repositories__search-button__icon">
+          search
+        </span>
+        Search
+      </button>
+
+      <button class="repositories__filter-button">
+        <span class="material-icons repositories__filter-button__icon">
+          filter_list
+        </span>
+        Apply all filters
+      </button>
+    </div>
+  </form>
+
+  <%= if @loading do %>
+    <div class="loader">
+      Loading...
+    </div>
+  <% end %>
+
+  <div class="repositories__container">
+    <%= for repo <- @repos do %>
+      <%= live_component @socket, RepoComponent, repo: repo%>
+    <% end %>
+  </div>
+</div>

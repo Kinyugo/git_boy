@@ -18,6 +18,7 @@ defmodule GitBoyWeb.Router do
     pipe_through :browser
 
     live "/", PageLive, :index
+    live "/repositories", RepositoryLive, :index
   end
 
   # Other scopes may use custom stacks.

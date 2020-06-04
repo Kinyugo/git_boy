@@ -8,8 +8,12 @@ defmodule GitBoy.Repositories do
   the list of repositories from GitHub.
   """
   use GenServer
+  require Logger
   alias GitBoy.Repositories.GitHubAPI
   alias GitBoy.Repositories.Repository
+
+  @type repositories :: [Repository.t()] | []
+  @type repo_server :: atom | pid | {atom, any} | {:via, atom, any}
 
   @default_cache_timeout 120_000
   @default_query_params [query: ["language:elixir"], sort: "stars", order: "desc"]
@@ -27,58 +31,75 @@ defmodule GitBoy.Repositories do
       cache_vsn: @default_cache_vsn
     ]
 
+    Logger.debug("Starting a new GenServer Process...")
+
     GenServer.start_link(__MODULE__, init_args, opts)
   end
 
+  @spec is_empty?(repo_server()) :: boolean()
   def is_empty?(repo_server) do
     repo_server
     |> list_repositories()
     |> Enum.empty?()
   end
 
-  @spec filter_by_name(atom | pid | {atom, any} | {:via, atom, any}, String.t()) ::
-          [Repository.t()] | []
+  @spec filter_by_name(repo_server(), String.t()) :: repositories()
   def filter_by_name(repo_server, repo_name) do
     repo_server
     |> list_repositories()
     |> Enum.filter(fn repo -> has_substr?(repo.name, repo_name) end)
   end
 
-  @spec filter_by_language(atom | pid | {atom, any} | {:via, atom, any}, String.t()) ::
-          [Repository.t()] | []
+  @spec filter_by_language(repo_server(), String.t()) :: repositories()
+  def filter_by_language(repo_server, "") do
+    repo_server
+    |> list_repositories()
+  end
+
   def filter_by_language(repo_server, language) do
     repo_server
     |> list_repositories()
     |> Enum.filter(fn repo -> equivalent_strings?(repo.language, language) end)
   end
 
-  @spec list_repositories(atom | pid | {atom, any} | {:via, atom, any}) :: [Repository.t()] | []
+  @spec filter_by_license(repo_server(), String.t()) :: repositories()
+  def filter_by_license(repo_server, "") do
+    repo_server
+    |> list_repositories()
+  end
+
+  def filter_by_license(repo_server, license_key) do
+    repo_server
+    |> list_repositories
+    |> Enum.filter(fn repo -> has_license?(repo.license, license_key) end)
+  end
+
+  @spec list_repositories(repo_server()) :: repositories()
   def list_repositories(repo_server) do
     GenServer.call(repo_server, :list_repositories)
   end
 
+  @spec refetch_repositories(repo_server()) :: repositories()
   def refetch_repositories(repo_server) do
-    GenServer.call(repo_server, :refetch_repositories)
+    GenServer.call(repo_server, :refetch_repositories, :infinity)
   end
 
-  @spec fetch_repositories(atom | pid | {atom, any} | {:via, atom, any}, GitHubAPI.params()) ::
-          [Repository.t()] | []
+  @spec fetch_repositories(repo_server()) :: repositories()
+  def fetch_repositories(repo_server) do
+    GenServer.call(repo_server, {:fetch_repositories, @default_query_params}, :infinity)
+  end
+
+  @spec fetch_repositories(repo_server(), GitHubAPI.params()) :: repositories()
   def fetch_repositories(repo_server, query_params) do
-    GenServer.call(repo_server, {:fetch_repositories, query_params})
+    GenServer.call(repo_server, {:fetch_repositories, query_params}, :infinity)
   end
 
   ## Server
   @impl true
   def init(cache_timeout: cache_timeout, query_params: query_params, cache_vsn: cache_vsn) do
-    # Fetch a list of repositories from github
-    repositories = GitHubAPI.search_for_repositories(query_params)
-
-    # Schedule cache cleanup after the given timeout
-    schedule_cache_cleanup({cache_vsn, cache_timeout})
-
     {:ok,
      %{
-       repositories: repositories,
+       repositories: [],
        cache_timeout: cache_timeout,
        cache_vsn: cache_vsn,
        query_params: query_params
@@ -153,6 +174,16 @@ defmodule GitBoy.Repositories do
   end
 
   ## Helpers
+  defp has_license?(nil, _license_key), do: false
+
+  defp has_license?(license, license_key) do
+    if Map.has_key?(license, :key) do
+      String.equivalent?(license.key, license_key)
+    else
+      false
+    end
+  end
+
   defp equivalent_strings?(first_string, second_string)
        when is_binary(first_string) and is_binary(second_string) do
     String.equivalent?(String.downcase(first_string), String.downcase(second_string))

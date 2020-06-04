@@ -1,0 +1,16 @@
+header {
+  border-bottom-width: 2px;
+  border-bottom-color: #f7fafc;
+  border-bottom-style: solid;
+
+  .header-container {
+    padding: 0.5em;
+    h1 {
+      font-family: "Lobster", cursive;
+      font-size: 3.5rem;
+      font-weight: 500;
+      color: #4a5568;
+      letter-spacing: 0.025em;
+    }
+  }
+}

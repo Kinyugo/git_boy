@@ -1,0 +1,94 @@
+@import "../partials/flex_center";
+@import "../partials/screens";
+
+@mixin form-button($bg: #ebf4ff, $bg-hover: #c3dafe) {
+  @include flex-center();
+  padding: 0.8em 1em;
+  border: none;
+  border-radius: 0.5rem;
+  background-color: $bg;
+  color: #4a5568;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.5s ease-in-out;
+
+  &:hover {
+    transform: scaleX(1.05);
+    background-color: $bg-hover;
+    color: #2d3748;
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &__icon {
+    margin-right: 0.5em;
+  }
+}
+.repositories {
+  @include flex_center($direction: column);
+  width: 100%;
+  padding: 0em 1.5em;
+
+  &__heading {
+    font-size: 2.2rem;
+    font-weight: 500;
+    color: #4a5568;
+    margin-bottom: 0.5em;
+    text-align: center;
+  }
+
+  &__input-container {
+    @include flex-center($direction: column);
+  }
+
+  &__form {
+    @include flex-center($direction: column);
+  }
+
+  &__input--text {
+    border: none;
+    border-bottom-width: 2px;
+    border-bottom-style: solid;
+    border-bottom-color: #718096;
+    margin: 0.5em 1em;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+    padding-top: 0.2em;
+    padding-bottom: 0.2em;
+    font-size: 1rem;
+    transition: all 0.5s ease-in-out;
+    width: 100%;
+
+    &:focus-within {
+      border-color: #90cdf4;
+    }
+    &:focus {
+      outline: none;
+    }
+  }
+
+  &__search-button {
+    @include form-button();
+    margin: 0.5em 1em;
+  }
+
+  &__filter-button {
+    @include form-button($bg: #fafafa, $bg-hover: #99b2c2);
+    margin: 0.5em 1em;
+  }
+
+  &__container {
+    max-width: 768px;
+    padding: 1em 0em;
+  }
+}
+
+@include for-tablet-landscape-up() {
+  .repositories {
+    &__input-container {
+      @include flex-center();
+    }
+  }
+}

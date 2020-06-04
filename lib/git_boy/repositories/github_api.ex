@@ -53,7 +53,10 @@ defmodule GitBoy.Repositories.GitHubAPI do
   ## Helper functions
   defp fetch_repositories_from_api(url) do
     url
-    |> HTTPoison.get()
+    |> HTTPoison.get(
+      "User-Agent": "Kinyugo",
+      Accept: "application/vnd.github.v3+json"
+    )
     |> parse_api_response()
   end
 

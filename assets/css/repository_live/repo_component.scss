@@ -1,0 +1,66 @@
+@import "../partials/flex_center";
+
+.repo {
+  @include flex-center($direction: column, $align: flex-start);
+  width: 100%;
+  margin-bottom: 1.5em;
+  padding: 1em;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+
+  &__header {
+    @include flex-center();
+  }
+
+  &__name {
+    text-decoration: none;
+    padding-right: 1em;
+    font-size: x-large;
+    color: #4a5568;
+    word-break: break-all;
+
+    &:hover {
+      color: #5a67d8;
+    }
+  }
+
+  &__body {
+    padding: 1em 1.5em;
+  }
+
+  &__description {
+    color: #4a5568;
+  }
+
+  &__footer {
+    @include flex-center();
+    flex-wrap: wrap;
+  }
+
+  &__metadata {
+    @include flex-center();
+    margin: 0.5em 1em;
+    color: #718096;
+  }
+
+  &__metadata-icon {
+    margin-right: 0.3em;
+    width: 1.1em;
+    height: 1.1em;
+  }
+
+  &__metadata-icon--stars {
+    color: coral;
+  }
+
+  &__metadata-icon--language {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    opacity: 0.75;
+  }
+
+  &__metadata-icon--issues {
+    color: #dd5145;
+  }
+}
