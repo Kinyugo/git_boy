@@ -11,6 +11,7 @@ defmodule GitBoy.Repositories do
   require Logger
   alias GitBoy.Repositories.GitHubAPI
   alias GitBoy.Repositories.Repository
+  alias GitBoy.Licenses.License
 
   @type repositories :: [Repository.t()] | []
   @type repo_server :: atom | pid | {atom, any} | {:via, atom, any}
@@ -18,6 +19,7 @@ defmodule GitBoy.Repositories do
   @default_cache_timeout 120_000
   @default_query_params [query: ["language:elixir"], sort: "stars", order: "desc"]
   @default_cache_vsn 1
+  @filter_keys [:language, :repo_name, :license, :sort, :order]
 
   def start_link(opts) when is_list(opts) do
     # Extract values for the initial query to send to github and also the
@@ -41,6 +43,37 @@ defmodule GitBoy.Repositories do
     repo_server
     |> list_repositories()
     |> Enum.empty?()
+  end
+
+  def sort_repos(repo_server, "", "") do
+    repo_server
+    |> list_repositories()
+  end
+
+  @spec sort_repos(repo_server(), String.t(), String.t()) :: repositories()
+  def sort_repos(repo_server, sort_by, order) do
+    repo_server
+    |> list_repositories()
+    |> sort_by(sort_by)
+    |> order(order)
+  end
+
+  def apply_all_filters(repo_server, []), do: list_repositories(repo_server)
+
+  def apply_all_filters(repo_server, filters) do
+    Logger.debug("Apply all filters")
+
+    [language, repo_name, license, sort, order] =
+      @filter_keys
+      |> Enum.map(fn filter_key -> Keyword.get(filters, filter_key, "") end)
+
+    repo_server
+    |> list_repositories()
+    |> Enum.filter(fn repo -> has_substr?(repo.name, repo_name) end)
+    |> Enum.filter(fn repo -> equivalent_strings?(repo.language, language) end)
+    |> Enum.filter(fn repo -> has_license?(repo.license, license) end)
+    |> sort_by(sort)
+    |> order(order)
   end
 
   @spec filter_by_name(repo_server(), String.t()) :: repositories()
@@ -70,8 +103,15 @@ defmodule GitBoy.Repositories do
 
   def filter_by_license(repo_server, license_key) do
     repo_server
-    |> list_repositories
+    |> list_repositories()
     |> Enum.filter(fn repo -> has_license?(repo.license, license_key) end)
+  end
+
+  @spec list_licenses(repo_server()) :: [License.t() | nil]
+  def list_licenses(repo_server) do
+    repo_server
+    |> list_repositories()
+    |> extract_licenses()
   end
 
   @spec list_repositories(repo_server()) :: repositories()
@@ -174,6 +214,37 @@ defmodule GitBoy.Repositories do
   end
 
   ## Helpers
+
+  defp sort_by(repos, ""), do: repos
+
+  defp sort_by(repos, sort_by) do
+    sort_key = sort_by_to_atom(sort_by)
+
+    Enum.sort(repos, fn repo1, repo2 ->
+      if Map.get(repo1, sort_key) <= Map.get(repo2, sort_key) do
+        true
+      else
+        false
+      end
+    end)
+  end
+
+  defp sort_by_to_atom("stars"), do: :stargazers_count
+  defp sort_by_to_atom("forks"), do: :forks_count
+  defp sort_by_to_atom("issues"), do: :open_issues_count
+
+  defp order(repos, ""), do: repos
+  defp order(repos, "asc"), do: repos
+  defp order(repos, "desc"), do: Enum.reverse(repos)
+
+  defp extract_licenses([]), do: []
+
+  defp extract_licenses(repositories) do
+    repositories
+    |> Enum.map(fn repo -> repo.license end)
+    |> Enum.filter(&(&1 != nil))
+  end
+
   defp has_license?(nil, _license_key), do: false
 
   defp has_license?(license, license_key) do

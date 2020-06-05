@@ -11,12 +11,12 @@ defmodule GitBoy.Application do
       GitBoyWeb.Telemetry,
       # Start the PubSub system
       {Phoenix.PubSub, name: GitBoy.PubSub},
-      # Start the Endpoint (http/https)
-      GitBoyWeb.Endpoint,
       # Start the ProgrammingLanguages service
       GitBoy.ProgrammingLanguages,
       # Start the Licenses service
-      GitBoy.Licenses
+      GitBoy.Licenses,
+      # Start the Endpoint (http/https)
+      GitBoyWeb.Endpoint
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

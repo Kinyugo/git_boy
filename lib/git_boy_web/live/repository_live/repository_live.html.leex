@@ -24,7 +24,7 @@
         autocomplete="off"
         id="repo-name"
         class="repositories__input--text"
-        phx-keyup="filter_repos"
+        phx-keyup="filter_repos_by_name"
         phx-debounce="500"
       >
 
@@ -37,6 +37,19 @@
       </datalist>
     </div>
 
+    <div class="repositoires__input-container">
+      <select name="license" class="repositories__input--select" phx-click="filter_repos_by_license">
+        <option value="" class="repositories__license__option">License</option>
+        <%= for license <- list_licenses(@repo_server, @common_licenses) do %>
+          <%= render_license_option(license, @license) %>
+        <% end %>
+      </select>
+
+      <select name="sort" class="repositories__input--select" phx-click="sort_repos">
+        <%= options_for_select(sort_options(), @sort) %>
+      </select>
+    </div>
+
     <div class="repositories__input-container">
       <button type="submit" class="repositories__search-button" phx-disable-with="Searching..." >
         <span class="material-icons repositories__search-button__icon">
@@ -45,7 +58,7 @@
         Search
       </button>
 
-      <button class="repositories__filter-button">
+      <button type="button" class="repositories__filter-button" phx-click="apply_all_filters">
         <span class="material-icons repositories__filter-button__icon">
           filter_list
         </span>
@@ -54,15 +67,16 @@
     </div>
   </form>
 
+
   <%= if @loading do %>
     <div class="loader">
       Loading...
     </div>
+  <% else %>
+    <div class="repositories__container">
+      <%= for repo <- @repos do %>
+        <%= live_component @socket, RepoComponent, repo: repo%>
+      <% end %>
+    </div>
   <% end %>
-
-  <div class="repositories__container">
-    <%= for repo <- @repos do %>
-      <%= live_component @socket, RepoComponent, repo: repo%>
-    <% end %>
-  </div>
 </div>
