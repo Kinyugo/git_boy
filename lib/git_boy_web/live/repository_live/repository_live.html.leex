@@ -12,7 +12,7 @@
         list="language-suggestions"
         id="language"
         class="repositories__input--text"
-        phx-keyup="update_language_suggestions_and_filter_repos"
+        phx-keyup="update_language_suggestions"
         phx-debounce="500"
       >
 
@@ -45,8 +45,8 @@
         <% end %>
       </select>
 
-      <select name="sort" class="repositories__input--select" phx-click="sort_repos">
-        <%= options_for_select(sort_options(), @sort) %>
+      <select name="sort_order" class="repositories__input--select" phx-click="sort_repos">
+        <%= options_for_select(sort_options(), @sort_order) %>
       </select>
     </div>
 
@@ -58,11 +58,11 @@
         Search
       </button>
 
-      <button type="button" class="repositories__filter-button" phx-click="apply_all_filters">
+      <button type="button" class="repositories__filter-button" phx-click="filter_and_sort_repos">
         <span class="material-icons repositories__filter-button__icon">
           filter_list
         </span>
-        Apply all filters
+        Filter and Sort
       </button>
     </div>
   </form>
