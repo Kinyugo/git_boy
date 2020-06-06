@@ -143,7 +143,7 @@ defmodule GitBoyWeb.RepositoryLive do
     repos =
       socket
       |> get_repo_server()
-      |> Repositories.apply_all_filters(filters)
+      |> Repositories.filter_and_sort(filters)
 
     attrs = [repos: repos]
 

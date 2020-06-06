@@ -16,243 +16,459 @@ defmodule GitBoy.Repositories do
   @type repositories :: [Repository.t()] | []
   @type repo_server :: atom | pid | {atom, any} | {:via, atom, any}
 
-  @default_cache_timeout 120_000
-  @default_query_params [query: ["language:elixir"], sort: "stars", order: "desc"]
-  @default_cache_vsn 1
-  @filter_keys [:language, :repo_name, :license, :sort, :order]
+  @cache_timeout 120_000
+  @query_params [query: ["language:elixir"], sort: "stars"]
+  @cache_vsn 1
+  @filter_and_sort_keys [:language, :repo_name, :license, :sort, :order]
 
-  def start_link(opts) when is_list(opts) do
-    # Extract values for the initial query to send to github and also the
-    # timeout after which to clean the cache
-    {cache_timeout, opts} = Keyword.pop(opts, :cache_timeout, @default_cache_timeout)
-    {query_params, opts} = Keyword.pop(opts, :query_params, @default_query_params)
+  # Client
+  def start_link(opts) do
+    Logger.debug("Starting a new Repositories process ~ opts: #{inspect(opts)}")
 
-    init_args = [
+    # Interval to clean cache
+    cache_timeout = Keyword.get(opts, :cache_timeout, @cache_timeout)
+    # Initial query for repositories
+    query_params = Keyword.get(opts, :query_params, @query_params)
+
+    init_arg = [
+      repositories: [],
       cache_timeout: cache_timeout,
       query_params: query_params,
-      cache_vsn: @default_cache_vsn
+      cache_vsn: @cache_vsn
     ]
 
-    Logger.debug("Starting a new GenServer Process...")
-
-    GenServer.start_link(__MODULE__, init_args, opts)
+    GenServer.start_link(__MODULE__, init_arg)
   end
 
-  @spec is_empty?(repo_server()) :: boolean()
-  def is_empty?(repo_server) do
-    repo_server
-    |> list_repositories()
-    |> Enum.empty?()
+  @spec list_licenses(pid()) :: [License.t()]
+  @doc """
+  Lists all the licenses of the repos in state.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.list_licenses(pid)
+        [%License{key: "mit", name: "MIT License"}, ...]
+  """
+  def list_licenses(pid) do
+    GenServer.call(pid, :list_licenses)
   end
 
-  def sort_repos(repo_server, "", "") do
-    repo_server
-    |> list_repositories()
+  @spec filter_and_sort(pid(), keyword()) :: repositories()
+  @doc """
+  Applies multiple filters to repos, sorts and orders them.
+
+   ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> filters = [
+        language: "elixir",
+        repo_name: "phoenix"
+        license: "mit",
+        sort: "stars",
+        order: "desc"
+      ]
+      iex> Repositories.filter_and_sort(pid, filters)
+      [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "mit", name: "MIT License"},
+          name: "phoenixframework/phoenix",
+          stargazers_count: 15328,
+          ...
+        },..
+      ]
+  """
+  def filter_and_sort(pid, []), do: list_repositories(pid)
+
+  def filter_and_sort(pid, filters_and_sort) do
+    params = get_filter_and_sort_values(filters_and_sort)
+
+    GenServer.call(pid, {:filter_and_sort, params})
   end
 
-  @spec sort_repos(repo_server(), String.t(), String.t()) :: repositories()
-  def sort_repos(repo_server, sort_by, order) do
-    repo_server
-    |> list_repositories()
-    |> sort_by(sort_by)
-    |> order(order)
+  @spec sort_repos(pid(), String.t(), String.t()) :: repositories()
+  @doc """
+  Sorts repositories based on the given criteria and the orders them
+  in ascending or descending order.
+
+   ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.sort_repos(pid, "stars", "desc")
+        [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "apache-2.0", name: "Apache 2.0 License"},
+          name: "elixir-lang/elixir",
+          stargazers_count: 16969,
+          ...
+        },..
+      ]
+  """
+  def sort_repos(pid, "", ""), do: list_repositories(pid)
+
+  def sort_repos(pid, sort, order) do
+    sorter_fn = fn repos ->
+      repos
+      |> sort_by(sort)
+      |> order(order)
+    end
+
+    GenServer.call(pid, {:sort_and_order, sorter_fn})
   end
 
-  def apply_all_filters(repo_server, []), do: list_repositories(repo_server)
+  @spec filter_by_license(pid(), String.t()) :: repositories()
+  @doc """
+  Filters repositories based on the given license.
 
-  def apply_all_filters(repo_server, filters) do
-    Logger.debug("Apply all filters")
+   ## Examples
 
-    [language, repo_name, license, sort, order] =
-      @filter_keys
-      |> Enum.map(fn filter_key -> Keyword.get(filters, filter_key, "") end)
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.filter_by_license(pid, "mit")
+        [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "mit", name: "MIT License"},
+          name: "phoenixframework/phoenix",
+          stargazers_count: 15328,
+          ...
+        },..
+      ]
+  """
+  def filter_by_license(pid, ""), do: list_repositories(pid)
 
-    repo_server
-    |> list_repositories()
-    |> Enum.filter(fn repo -> has_substr?(repo.name, repo_name) end)
-    |> Enum.filter(fn repo -> equivalent_strings?(repo.language, language) end)
-    |> Enum.filter(fn repo -> has_license?(repo.license, license) end)
-    |> sort_by(sort)
-    |> order(order)
+  def filter_by_license(pid, license) do
+    GenServer.call(pid, {:filter, fn repo -> has_license?(Map.get(repo, :license), license) end})
   end
 
-  @spec filter_by_name(repo_server(), String.t()) :: repositories()
-  def filter_by_name(repo_server, repo_name) do
-    repo_server
-    |> list_repositories()
-    |> Enum.filter(fn repo -> has_substr?(repo.name, repo_name) end)
+  @spec filter_by_name(pid(), String.t()) :: repositories()
+  @doc """
+  Filters repositories by the given name.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.filter_by_name(pid, "phoenix")
+        [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "mit", name: "MIT License"},
+          name: "phoenixframework/phoenix",
+          stargazers_count: 15328,
+          ...
+        },..
+      ]
+  """
+  def filter_by_name(pid, ""), do: list_repositories(pid)
+
+  def filter_by_name(pid, repo_name) do
+    GenServer.call(pid, {:filter, fn repo -> has_substr?(Map.get(repo, :name), repo_name) end})
   end
 
-  @spec filter_by_language(repo_server(), String.t()) :: repositories()
-  def filter_by_language(repo_server, "") do
-    repo_server
-    |> list_repositories()
+  @spec filter_by_language(pid, String.t()) :: repositories()
+  @doc """
+  Filters repositories by the given language.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.filter_by_language(pid, "elixir")
+        [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "mit", name: "MIT License"},
+          name: "phoenixframework/phoenix",
+          stargazers_count: 15328,
+          ...
+        },..
+      ]
+  """
+  def filter_by_language(pid, ""), do: list_repositories(pid)
+
+  def filter_by_language(pid, language) do
+    GenServer.call(
+      pid,
+      {:filter, fn repo -> equivalent_strings?(Map.get(repo, :language), language) end}
+    )
   end
 
-  def filter_by_language(repo_server, language) do
-    repo_server
-    |> list_repositories()
-    |> Enum.filter(fn repo -> equivalent_strings?(repo.language, language) end)
+  @spec fetch_repositories(pid()) :: repositories()
+  @doc """
+  Fetches repositories from github using the default query `@query_params`.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.fetch_repositories(pid)
+        [
+        %GitBoy.Repositories.Repository{
+          language: "Elixir",
+          license: %GitBoy.Licenses.License{key: "mit", name: "MIT License"},
+          name: "phoenixframework/phoenix",
+          stargazers_count: 15328,
+          ...
+        },..
+      ]
+  """
+  def fetch_repositories(pid), do: fetch_repositories(pid, @query_params)
+
+  @spec fetch_repositories(pid(), GitHubAPI.params() | keyword()) :: repositories()
+  @doc """
+  Fetches repositories from github based on the given params.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> params = [query: ["freecodecamp", "language:javascript"], sort: "stars", order: "desc"]
+      iex> Repositories.fetch_repositories(pid, params)
+        [
+        %GitBoy.Repositories.Repository{
+          language: "JavaScript",
+          license: %GitBoy.Licenses.License{
+            key: "bsd-3-clause",
+            name: "BSD 3-Clause \"New\" or \"Revised\" License"
+          },
+          name: "freeCodeCamp/freeCodeCamp",
+          stargazers_count: 311433,
+          url: "https://github.com/freeCodeCamp/freeCodeCamp",
+          ...
+        },...
+      ]
+  """
+  def fetch_repositories(pid, query_params) do
+    GenServer.call(pid, {:fetch_repositories, query_params}, :infinity)
   end
 
-  @spec filter_by_license(repo_server(), String.t()) :: repositories()
-  def filter_by_license(repo_server, "") do
-    repo_server
-    |> list_repositories()
+  @spec list_repositories(pid()) :: repositories()
+  @doc """
+  Lists repositories currently stored in the repo server.
+
+   ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> params = [query: ["freecodecamp", "language:javascript"], sort: "stars", order: "desc"]
+      iex> Repositories.fetch_repositories(pid, params)
+      iex> Repositories.list_repositories(pid)
+      [
+        %GitBoy.Repositories.Repository{
+          language: "JavaScript",
+          license: %GitBoy.Licenses.License{
+            key: "bsd-3-clause",
+            name: "BSD 3-Clause \"New\" or \"Revised\" License"
+          },
+          name: "freeCodeCamp/freeCodeCamp",
+          stargazers_count: 311433,
+          url: "https://github.com/freeCodeCamp/freeCodeCamp",
+          ...
+        },...
+      ]
+  """
+
+  def list_repositories(pid) do
+    GenServer.call(pid, :list_repositories)
   end
 
-  def filter_by_license(repo_server, license_key) do
-    repo_server
-    |> list_repositories()
-    |> Enum.filter(fn repo -> has_license?(repo.license, license_key) end)
+  @spec is_empty?(pid()) :: boolean()
+  @doc """
+  Returns `true` if no repositories are currently stored in the repo server
+  `false` otherwise.
+
+  ## Examples
+
+      iex> {:ok, pid} = Repositories.start_link([])
+      iex> Repositories.is_empty?(pid)
+        true
+      iex> Repositories.fetch_repositories(pid)
+      iex> Repositories.is_empty?(pid)
+        false
+  """
+  def is_empty?(pid) do
+    GenServer.call(pid, :is_empty?)
   end
 
-  @spec list_licenses(repo_server()) :: [License.t() | nil]
-  def list_licenses(repo_server) do
-    repo_server
-    |> list_repositories()
-    |> extract_licenses()
-  end
+  # Server (callbacks)
 
-  @spec list_repositories(repo_server()) :: repositories()
-  def list_repositories(repo_server) do
-    GenServer.call(repo_server, :list_repositories)
-  end
-
-  @spec refetch_repositories(repo_server()) :: repositories()
-  def refetch_repositories(repo_server) do
-    GenServer.call(repo_server, :refetch_repositories, :infinity)
-  end
-
-  @spec fetch_repositories(repo_server()) :: repositories()
-  def fetch_repositories(repo_server) do
-    GenServer.call(repo_server, {:fetch_repositories, @default_query_params}, :infinity)
-  end
-
-  @spec fetch_repositories(repo_server(), GitHubAPI.params()) :: repositories()
-  def fetch_repositories(repo_server, query_params) do
-    GenServer.call(repo_server, {:fetch_repositories, query_params}, :infinity)
-  end
-
-  ## Server
   @impl true
-  def init(cache_timeout: cache_timeout, query_params: query_params, cache_vsn: cache_vsn) do
-    {:ok,
-     %{
-       repositories: [],
-       cache_timeout: cache_timeout,
-       cache_vsn: cache_vsn,
-       query_params: query_params
-     }}
+  def init(state) do
+    {:ok, Map.new(state)}
   end
 
   @impl true
-  def handle_call(:list_repositories, _from, %{repositories: repositories} = state) do
-    {:reply, repositories, state}
+  def handle_call(:list_licenses, _from, state) do
+    licenses =
+      state
+      |> get_repositories()
+      |> extract_licenses()
+
+    {:reply, licenses, state}
   end
 
   @impl true
-  def handle_call(
-        :refetch_repositories,
-        _from,
-        %{cache_timeout: cache_timeout, query_params: query_params} = state
-      ) do
-    # Fetch repositories from github api using the previous query.
-    repositories = GitHubAPI.search_for_repositories(query_params)
+  def handle_call({:filter_and_sort, params}, _from, state) do
+    [language, repo_name, license, sort, order] = params
 
+    repos =
+      state
+      |> get_repositories()
+      |> Enum.filter(fn repo ->
+        name_filter_fn(repo, repo_name) &&
+          language_filter_fn(repo, language) &&
+          license_filter_fn(repo, license)
+      end)
+      |> sort_by(sort)
+      |> order(order)
+
+    {:reply, repos, state}
+  end
+
+  @impl true
+  def handle_call({:sort_and_order, sorter_fn}, _from, state) do
+    repos = get_repositories(state)
+    sorted_repos = sorter_fn.(repos)
+
+    {:reply, sorted_repos, state}
+  end
+
+  @impl true
+  def handle_call({:filter, filter_fn}, _from, state) do
+    repos =
+      state
+      |> get_repositories()
+      |> Enum.filter(filter_fn)
+
+    {:reply, repos, state}
+  end
+
+  @impl true
+  def handle_call(:is_empty?, _from, state) do
+    is_empty =
+      state
+      |> get_repositories()
+      |> Enum.empty?()
+
+    {:reply, is_empty, state}
+  end
+
+  @impl true
+  def handle_call(:list_repositories, _from, state) do
+    repos = get_repositories(state)
+
+    {:reply, repos, state}
+  end
+
+  @impl true
+  def handle_call({:fetch_repositories, query_params}, _from, state) do
+    # Fetch repos from API
+    repos = GitHubAPI.search_for_repositories(query_params)
+
+    # Update state
     new_state =
       state
-      |> update_repositories(repositories)
-      |> update_cache_vsn()
-
-    # Schedule cleanup for the updated vsn of the cache
-    cache_vsn = Map.get(state, :cache_vsn)
-    schedule_cache_cleanup({cache_vsn, cache_timeout})
-
-    {:reply, repositories, new_state}
-  end
-
-  @impl true
-  def handle_call(
-        {:fetch_repositories, query_params},
-        _from,
-        %{cache_timeout: cache_timeout} = state
-      ) do
-    # Fetch repositories from github api
-    repositories = GitHubAPI.search_for_repositories(query_params)
-
-    new_state =
-      state
-      |> update_repositories(repositories)
+      |> update_repositories(repos)
       |> update_cache_vsn()
       |> update_query_params(query_params)
 
-    # Schedule cleanup for the updated version of the cache
-    cache_vsn = Map.get(state, :cache_vsn)
-    schedule_cache_cleanup({cache_vsn, cache_timeout})
+    # Schedule cache cleanup job
+    cache_config = get_cache_config(state)
+    schedule_cache_cleanup(cache_config)
 
-    {:reply, repositories, new_state}
+    {:reply, repos, new_state}
   end
 
   @impl true
-  def handle_info(
-        {:clean_cache, vsn},
-        %{cache_timeout: cache_timeout, cache_vsn: cache_vsn} = state
-      ) do
-    # Schedule next cache cleanup
-    schedule_cache_cleanup({cache_vsn, cache_timeout})
+  def handle_info({:clean_cache, cache_vsn}, state) do
+    # Clean cache if the version set up for cleaning
+    # and the version currently in the state match
+    %{cache_vsn: current_cache_vsn} = cache_config = get_cache_config(state)
 
-    # Prevent cleaning of recently fetched repositories by old `:clean_cache` requests.
     new_state =
-      if cache_vsn == vsn do
-        update_repositories(state, [])
-      else
-        state
+      case cache_vsn == current_cache_vsn do
+        true ->
+          update_repositories(state, [])
+
+        _ ->
+          state
       end
+
+    # Reschedule next cache cleanup
+    schedule_cache_cleanup(cache_config)
 
     {:noreply, new_state}
   end
 
-  ## Helpers
-
-  defp sort_by(repos, ""), do: repos
-
-  defp sort_by(repos, sort_by) do
-    sort_key = sort_by_to_atom(sort_by)
-
-    Enum.sort(repos, fn repo1, repo2 ->
-      if Map.get(repo1, sort_key) <= Map.get(repo2, sort_key) do
-        true
-      else
-        false
-      end
-    end)
-  end
-
-  defp sort_by_to_atom("stars"), do: :stargazers_count
-  defp sort_by_to_atom("forks"), do: :forks_count
-  defp sort_by_to_atom("issues"), do: :open_issues_count
-
-  defp order(repos, ""), do: repos
-  defp order(repos, "asc"), do: repos
-  defp order(repos, "desc"), do: Enum.reverse(repos)
+  # Helpers
 
   defp extract_licenses([]), do: []
 
   defp extract_licenses(repositories) do
     repositories
-    |> Enum.map(fn repo -> repo.license end)
+    |> Enum.map(fn repo -> Map.get(repo, :license) end)
     |> Enum.filter(&(&1 != nil))
+  end
+
+  defp sort_by(repos, ""), do: repos
+
+  defp sort_by(repos, sort) do
+    sort_key = sort_to_atom(sort)
+
+    Enum.sort(repos, &compare_repos(&1, &2, sort_key))
+  end
+
+  defp sort_to_atom("stars"), do: :stargazers_count
+  defp sort_to_atom("forks"), do: :forks_count
+  defp sort_to_atom("issues"), do: :open_issues_count
+
+  defp compare_repos(repo1, repo2, key) do
+    case Map.get(repo1, key) <= Map.get(repo2, key) do
+      true ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp order(repos, "desc"), do: Enum.reverse(repos)
+  defp order(repos, _), do: repos
+
+  defp name_filter_fn(repo, repo_name) do
+    has_substr?(Map.get(repo, :name), repo_name)
+  end
+
+  defp language_filter_fn(repo, language) do
+    equivalent_strings?(Map.get(repo, :language), language)
+  end
+
+  defp license_filter_fn(repo, license) do
+    has_license?(Map.get(repo, :license), license)
+  end
+
+  defp get_filter_and_sort_values(filters_and_sort) do
+    @filter_and_sort_keys
+    |> Enum.map(fn filter_key -> Keyword.get(filters_and_sort, filter_key, "") end)
   end
 
   defp has_license?(nil, _license_key), do: false
 
   defp has_license?(license, license_key) do
-    if Map.has_key?(license, :key) do
-      String.equivalent?(license.key, license_key)
-    else
-      false
+    case Map.has_key?(license, :key) do
+      true ->
+        String.equivalent?(license.key, license_key)
+
+      _ ->
+        false
     end
+  end
+
+  defp has_substr?(name, substr) do
+    String.contains?(String.downcase(name), String.downcase(substr))
   end
 
   defp equivalent_strings?(first_string, second_string)
@@ -262,8 +478,12 @@ defmodule GitBoy.Repositories do
 
   defp equivalent_strings?(_, _), do: false
 
-  defp has_substr?(name, substr) do
-    String.contains?(String.downcase(name), String.downcase(substr))
+  defp get_repositories(state) do
+    Map.get(state, :repositories, [])
+  end
+
+  defp get_cache_config(state) do
+    Map.take(state, [:cache_vsn, :cache_timeout])
   end
 
   defp update_query_params(state, new_query_params) do
@@ -271,14 +491,14 @@ defmodule GitBoy.Repositories do
   end
 
   defp update_cache_vsn(state) do
-    Map.update(state, :cache_vsn, @default_cache_vsn, &(&1 + 1))
+    Map.update(state, :cache_vsn, @cache_vsn, &(&1 + 1))
   end
 
   defp update_repositories(state, new_value) do
     Map.put(state, :repositories, new_value)
   end
 
-  defp schedule_cache_cleanup({cache_vsn, timeout}) do
-    Process.send_after(self(), {:clean_cache, cache_vsn}, timeout)
+  defp schedule_cache_cleanup(%{cache_vsn: vsn, cache_timeout: timeout}) do
+    Process.send_after(self(), {:clean_cache, vsn}, timeout)
   end
 end
