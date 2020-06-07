@@ -1,0 +1,46 @@
+@import "../partials/flex_center";
+
+.landing {
+  @include flex_center($direction: column);
+  flex: 1;
+  background-image: url("/images/landing-bg.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-blend-mode: lighten;
+
+  &__content {
+    @include flex_center($direction: column);
+    flex: 1;
+    padding: 1em;
+    text-align: center;
+    background-color: #e2d7f38a;
+    width: 100%;
+    height: 100%;
+    * {
+      max-width: 768px;
+    }
+  }
+
+  &__header {
+    font-size: 2.5rem;
+    color: #4a5568;
+  }
+
+  &__description {
+    font-size: 1.2rem;
+    color: rgba($color: #000000, $alpha: 0.8);
+  }
+
+  &__cta-button {
+    margin: 1em 0em;
+    padding: 0.5em 1em;
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: 500;
+    border-radius: 0.1rem 0.5rem;
+    background-color: rgba($color: #000000, $alpha: 0.9);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    color: #ffffff;
+  }
+}

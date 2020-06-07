@@ -1,16 +1,79 @@
+@import "./partials/flex_center";
+@import "./partials/screens";
+
 header {
   border-bottom-width: 2px;
   border-bottom-color: #f7fafc;
   border-bottom-style: solid;
 
   .header-container {
+    @include flex_center($justify: space-between);
     padding: 0.5em;
-    h1 {
+    .site-name {
+      text-decoration: none;
       font-family: "Lobster", cursive;
       font-size: 3.5rem;
       font-weight: 500;
       color: #4a5568;
       letter-spacing: 0.025em;
+      opacity: 1;
+      transition: none;
+
+      &:visited {
+        color: #4a5568;
+        opacity: 1;
+      }
+    }
+  }
+
+  .nav {
+    @include flex_center($justify: space-between);
+    flex-wrap: wrap;
+    padding-right: 2em;
+
+    &__item {
+      @include flex_center();
+      margin: 0em 1em;
+      color: #718096;
+      transition: all 0.3s ease-in-out;
+
+      &__link {
+        @include flex_center();
+        text-decoration: none;
+        font-size: 1rem;
+        color: #4a5568;
+
+        &__icon {
+          margin-right: 0.2em;
+        }
+
+        &--active {
+          color: #4299e1;
+        }
+
+        &:hover {
+          transform: scaleX(1.05);
+          color: #5a67d8;
+        }
+
+        &__text {
+          display: none;
+        }
+      }
+    }
+  }
+}
+
+@include for-tablet-portrait-up() {
+  header {
+    .nav {
+      &__item {
+        &__link {
+          &__text {
+            display: block;
+          }
+        }
+      }
     }
   }
 }

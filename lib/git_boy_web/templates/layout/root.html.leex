@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || "GitBoy", suffix: " · Phoenix Framework" %>
+    <%= live_title_tag assigns[:page_title] || "GitBoy", suffix: " · Awesomeness" %>
     <link phx-track-static rel="stylesheet" href="<%= Routes.static_path(@conn, "/css/app.css") %>"/>
     <link href="https://fonts.googleapis.com/css2?family=Lobster&family=Noto+Sans+JP:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -14,9 +14,30 @@
   <body>
     <header>
       <section class="header-container">
-        <h1>GitBoy</h1>
+        <%= live_patch "GitBoy", to: Routes.page_path(@conn, :index), replace: true, class: "site-name" %>
+
+        <ul class="nav">
+          <li class="nav__item">
+            <%= live_patch to: Routes.page_path(@conn, :index), replace: true, class: "nav__item__link" do %>
+            <span class="material-icons nav__item__link__icon">house</span>
+            <p class="nav__item__link__text">Home</p>
+            <% end %>
+          </li>
+
+          <li class="nav__item">
+            <%= live_patch to: Routes.repository_path(@conn, :index), replace: true, class: "nav__item__link" do %>
+              <span class="material-icons nav__item__link__icon">search</span>
+              <p class="nav__item__link__text">Search Repositories</p>
+            <% end %>
+          </li>
+        </ul>
       </section>
     </header>
-    <%= @inner_content %>
+
+    <div class="main-container">
+      <%= @inner_content %>
+    </div>
+
+    <%= render "footer.html", conn: @conn %>
   </body>
 </html>

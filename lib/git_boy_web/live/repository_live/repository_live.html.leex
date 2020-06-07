@@ -68,15 +68,24 @@
   </form>
 
 
-  <%= if @loading do %>
-    <div class="loader">
-      Loading...
-    </div>
-  <% else %>
-    <div class="repositories__container">
-      <%= for repo <- @repos do %>
-        <%= live_component @socket, RepoComponent, repo: repo%>
-      <% end %>
-    </div>
+  <%= cond do %>
+    <% @loading -> %>
+      <div class="loader">
+        Loading...
+      </div>
+
+    <% !Enum.empty?(@repos) -> %>
+      <div class="repositories__container">
+        <%= for repo <- @repos do %>
+          <%= live_component @socket, RepoComponent, repo: repo%>
+        <% end %>
+      </div>
+    <% true -> %>
+       <div class="repositories__empty">
+        <img src="/images/repo_empty.svg" alt="Empty" class="repositories__empty__img">
+        <h3 class="repositories__empty__header">Wow!!!</h3>
+        <p class="repositories__empty__body">It's so empty here! Maybe a search would help.</p>
+      </div>
+
   <% end %>
 </div>

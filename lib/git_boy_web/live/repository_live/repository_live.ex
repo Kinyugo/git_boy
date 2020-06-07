@@ -27,7 +27,7 @@ defmodule GitBoyWeb.RepositoryLive do
 
     socket = assign(socket, default_assigns)
 
-    {:ok, socket, temporary_assigns: [repos: [], language_suggestions: []]}
+    {:ok, socket, temporary_assigns: [repos: nil, language_suggestions: []]}
   end
 
   defp setup_repo_server(socket) do

@@ -7,9 +7,36 @@ body,
   font-family: "Noto Sans JP", sans-serif;
 }
 
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+
+  .main-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+}
+
+[data-phx-root-id],
+[data-phx-main] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 @import "../node_modules/nprogress/nprogress.css";
 @import "./repository_live/loader.scss";
 @import "./live_view.scss";
 @import "./header.scss";
+@import "./footer.scss";
+@import "./page_live/page_live.scss";
 @import "./repository_live/repository_live.scss";
 @import "./repository_live/repo_component.scss";
