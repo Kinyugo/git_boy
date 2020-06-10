@@ -220,7 +220,7 @@ defmodule GitBoyWeb.RepositoryLive do
     [
       "Sort By": "",
       "Stars Ascending": "stars asc",
-      "Stars Desending": "stars desc",
+      "Stars Descending": "stars desc",
       "Forks Ascending": "forks asc",
       "Forks Descending": "forks desc",
       "Issues Ascending": "issues asc",
